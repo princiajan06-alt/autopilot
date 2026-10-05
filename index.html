@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Autopilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     PUT YOUR YOUTUBE VIDEO ID IN THE SCRIPT AT THE BOTTOM
+     (search for VIDEO_ID)
+     ============================================================ */
+
+  :root {
+    --terminal: #2e3236;
+    --terminal-deep: #24272a;
+    --sign: #ffc800;
+    --ink: #000000;
+    --paper: #ecebe6;
+    --muted: #a3a6a8;
+    --ap-on: #3fd27c;
+    --ap-off: #ffa31a;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--terminal);
+    color: var(--paper);
+    font-family: "Albert Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Autopilot status light, like a cockpit annunciator */
+  .ap {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 20px);
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 8px 12px;
+    background: var(--terminal-deep);
+    border: 1px solid #44494d;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    z-index: 5;
+    transition: opacity 0.4s ease;
+  }
+  .ap.hidden { opacity: 0; pointer-events: none; }
+  .ap .light {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ap-on);
+    box-shadow: 0 0 10px var(--ap-on);
+  }
+  .ap.off .light {
+    background: var(--ap-off);
+    box-shadow: 0 0 10px var(--ap-off);
+    animation: blink 0.45s steps(1) 4;
+  }
+  @keyframes blink { 50% { opacity: 0.15; } }
+
+  main {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 96px 24px 56px;
+  }
+
+  .screen {
+    width: 100%;
+    max-width: 560px;
+    animation: enter 0.45s cubic-bezier(.2,.7,.2,1);
+  }
+  .screen.wide { max-width: 860px; }
+
+  @keyframes enter {
+    from { opacity: 0; transform: translateX(48px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .prompt {
+    font-size: clamp(1.6rem, 5vw, 2.4rem);
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 36px;
+    max-width: 24ch;
+    text-wrap: balance;
+  }
+  .prompt.long { max-width: 30ch; }
+
+  .note {
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.5;
+    margin: -20px 0 32px;
+    max-width: 44ch;
+  }
+
+  .signs {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Airport wayfinding sign = the button */
+  .sign {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    min-height: 82px;
+    padding: 0;
+    background: var(--sign);
+    color: var(--ink);
+    border: none;
+    border-radius: 4px;
+    font: 800 clamp(1.35rem, 4vw, 1.75rem)/1 "Albert Sans", "Segoe UI", Arial, sans-serif;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+  .sign:hover { transform: translateX(6px); }
+  .sign:active { filter: brightness(0.92); }
+  .sign:focus-visible {
+    outline: 3px solid var(--paper);
+    outline-offset: 4px;
+  }
+  .sign .pict {
+    width: 82px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    background: var(--ink);
+    color: var(--sign);
+    border-radius: 4px 0 0 4px;
+  }
+  .sign .pict svg { width: 40px; height: 40px; }
+  .sign .label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 22px;
+  }
+  .sign .arrow {
+    width: 68px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+  }
+  .sign .arrow svg { width: 32px; height: 32px; }
+
+  /* Final video */
+  .video {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .video iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .video .placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-size: 1rem;
+    padding: 20px;
+    text-align: center;
+  }
+  .credit {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .credit a { color: var(--paper); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .screen { animation: none; }
+    .sign { transition: none; }
+    .sign:hover { transform: none; }
+    .ap.off .light { animation: none; }
+  }
+
+  @media (max-width: 480px) {
+    .sign { min-height: 72px; }
+    .sign .pict { width: 70px; }
+    .sign .pict svg { width: 34px; height: 34px; }
+    .sign .arrow { width: 54px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ap hidden" id="ap" role="status" aria-live="polite">
+  <span class="light"></span>
+  <span id="apText">Autopilot on</span>
+</div>
+
+<main id="stage"></main>
+
+<script>
+  // ============================================================
+  // 1. Upload your video to YouTube as UNLISTED.
+  // 2. Copy the ID from the link. For https://youtu.be/AbC123xYz
+  //    the ID is AbC123xYz
+  // 3. Paste it between the quotes below.
+  // ============================================================
+  const VIDEO_ID = "YFdTRYuyVq4";
+
+  const NAME = "Janell Monteiro";
+
+  const icons = {
+    plane: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 15.5v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0v5l-8 5v2l8-2.5v5.5l-2 1.5V22l3.5-1 3.5 1v-1.5l-2-1.5V13z"/></svg>',
+    alarm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M4 4.5 6.5 2.5M20 4.5l-2.5-2"/></svg>',
+    ticket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10" stroke-dasharray="2 2"/></svg>',
+    seat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v10a2 2 0 0 0 2 2h7"/><path d="M7 15l-1 6M16 15l2 6M10 11h7"/></svg>',
+    headphones: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
+    speech: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>'
+  };
+  const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>';
+
+  // The trip. Steps 1 to 3 have only one way forward.
+  const steps = [
+    {
+      prompt: "6:00 AM. Your alarm goes off.",
+      options: [{ label: "Get up", icon: "alarm" }]
+    },
+    {
+      prompt: "Your bag is packed. Online check-in is open.",
+      options: [{ label: "Check in", icon: "ticket" }]
+    },
+    {
+      prompt: "Security. Gate. Boarding. You find your seat.",
+      options: [{ label: "Headphones in", icon: "headphones" }]
+    },
+    {
+      prompt: "You find your seat. The two seats beside you are empty, and the person across the aisle looks over.",
+      long: true,
+      options: [
+        { label: "Headphones in", icon: "headphones",
+          ending: "That's what most people do. I almost did too." },
+        { label: "Say something", icon: "speech",
+          ending: "That's what I did. Here's where it led." }
+      ]
+    }
+  ];
+
+  const stage = document.getElementById("stage");
+  const ap = document.getElementById("ap");
+  const apText = document.getElementById("apText");
+
+  function sign(opt, onClick) {
+    const b = document.createElement("button");
+    b.className = "sign";
+    b.innerHTML =
+      '<span class="pict" aria-hidden="true">' + icons[opt.icon] + '</span>' +
+      '<span class="label">' + opt.label + '</span>' +
+      '<span class="arrow" aria-hidden="true">' + arrow + '</span>';
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function show(build, wide) {
+    stage.innerHTML = "";
+    const s = document.createElement("section");
+    s.className = "screen" + (wide ? " wide" : "");
+    build(s);
+    stage.appendChild(s);
+    const first = s.querySelector("button");
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  function intro() {
+    ap.classList.add("hidden");
+    show(s => {
+      s.innerHTML =
+        '<h1 class="prompt">Let\'s take a trip.</h1>' +
+        '<p class="note">It takes about a minute. Just follow the signs.</p>';
+      const wrap = document.createElement("div");
+      wrap.className = "signs";
+      wrap.appendChild(sign({ label: "Start", icon: "plane" }, () => step(0)));
+      s.appendChild(wrap);
+    });
+  }
+
+  function step(i) {
+    const st = steps[i];
+    const isChoice = st.options.length > 1;
+
+    if (!isChoice) {
+      ap.classList.remove("hidden", "off");
+      apText.textContent = "Autopilot on";
+    }
+
+    show(s => {
+      const h = document.createElement("h1");
+      h.className = "prompt" + (st.long ? " long" : "");
+      h.textContent = st.prompt;
+      s.appendChild(h);
+
+      const wrap = document.createElement("div");
+      wrap.className = "signs";
+      st.options.forEach(opt => {
+        wrap.appendChild(sign(opt, () => {
+          if (opt.ending) return ending(opt.ending);
+          const next = i + 1;
+          if (steps[next] && steps[next].options.length > 1) {
+            disengage(() => step(next));
+          } else {
+            step(next);
+          }
+        }));
+      });
+      s.appendChild(wrap);
+    });
+  }
+
+  // Autopilot switches off right before the real choice
+  function disengage(then) {
+    stage.innerHTML = "";
+    ap.classList.add("off");
+    apText.textContent = "Autopilot off";
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setTimeout(then, reduce ? 300 : 1900);
+  }
+
+  function ending(line) {
+    ap.classList.add("hidden");
+    show(s => {
+      const h = document.createElement("h1");
+      h.className = "prompt long";
+      h.textContent = line;
+      s.appendChild(h);
+
+      const v = document.createElement("div");
+      v.className = "video";
+      if (VIDEO_ID && VIDEO_ID !== "YOUR_VIDEO_ID") {
+        const params = new URLSearchParams({ rel: "0", playsinline: "1" });
+        if (location.protocol.startsWith("http")) params.set("origin", location.origin);
+        v.innerHTML =
+          '<iframe src="https://www.youtube.com/embed/' + VIDEO_ID + '?' + params.toString() + '" ' +
+          'title="' + NAME + ' multimedia essay" ' +
+          'referrerpolicy="strict-origin-when-cross-origin" ' +
+          'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
+          'allowfullscreen></iframe>';
+      } else {
+        v.innerHTML = '<div class="placeholder">Your video will appear here once VIDEO_ID is set.</div>';
+      }
+      s.appendChild(v);
+
+      const c = document.createElement("p");
+      c.className = "credit";
+      const link = (VIDEO_ID && VIDEO_ID !== "YOUR_VIDEO_ID")
+        ? ' If the video doesn\'t load, <a href="https://youtu.be/' + VIDEO_ID + '" target="_blank" rel="noopener">watch it on YouTube</a>.'
+        : "";
+      c.innerHTML = NAME + ", Brooke Owens Fellowship multimedia essay." + link;
+      s.appendChild(c);
+    }, true);
+  }
+
+  intro();
+</script>
+
+</body>
+</html>
